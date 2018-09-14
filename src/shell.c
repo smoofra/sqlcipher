@@ -401,6 +401,12 @@ static char *Argv0;
 static char mainPrompt[20];     /* First line prompt. default: "sqlite> "*/
 static char continuePrompt[20]; /* Continuation prompt. default: "   ...> " */
 
+
+/*
+ ** Flags to open the database with
+ **/
+static int flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE;
+
 /*
 ** Render output like fprintf().  Except, if the output is going to the
 ** console and if this is running on a Windows machine, translate the
@@ -4238,7 +4244,7 @@ static int session_filter(void *pCtx, const char *zTab){
 static void open_db(ShellState *p, int keepAlive){
   if( p->db==0 ){
     sqlite3_initialize();
-    sqlite3_open(p->zDbFilename, &p->db);
+    sqlite3_open_v2(p->zDbFilename, &p->db, flags, NULL);
     globalDb = p->db;
     if( p->db==0 || SQLITE_OK!=sqlite3_errcode(p->db) ){
       utf8_printf(stderr,"Error: unable to open database \"%s\": %s\n",
@@ -4890,7 +4896,7 @@ static void tryToClone(ShellState *p, const char *zNewDb){
     utf8_printf(stderr, "File \"%s\" already exists.\n", zNewDb);
     return;
   }
-  rc = sqlite3_open(zNewDb, &newDb);
+  rc = sqlite3_open_v2(zNewDb, &newDb, flags, NULL);
   if( rc ){
     utf8_printf(stderr, "Cannot create output database: %s\n",
             sqlite3_errmsg(newDb));
@@ -5511,7 +5517,7 @@ static int do_meta_command(char *zLine, ShellState *p){
       return 1;
     }
     if( zDb==0 ) zDb = "main";
-    rc = sqlite3_open(zDestFile, &pDest);
+    rc = sqlite3_open_v2(zDestFile, &pDest, flags, NULL);
     if( rc!=SQLITE_OK ){
       utf8_printf(stderr, "Error: cannot open \"%s\"\n", zDestFile);
       sqlite3_close(pDest);
@@ -6449,7 +6455,7 @@ static int do_meta_command(char *zLine, ShellState *p){
       rc = 1;
       goto meta_command_exit;
     }
-    rc = sqlite3_open(zSrcFile, &pSrc);
+    rc = sqlite3_open_v2(zSrcFile, &pSrc, flags, 0);
     if( rc!=SQLITE_OK ){
       utf8_printf(stderr, "Error: cannot open \"%s\"\n", zSrcFile);
       sqlite3_close(pSrc);
@@ -7925,6 +7931,7 @@ static const char zOptions[] =
   "   -stats               print memory stats before each finalize\n"
   "   -version             show SQLite version\n"
   "   -vfs NAME            use NAME as the default VFS\n"
+  "   -readonly            open the database readonly\n"
 #ifdef SQLITE_ENABLE_VFSTRACE
   "   -vfstrace            enable tracing of all VFS calls\n"
 #endif
@@ -8172,6 +8179,8 @@ int SQLITE_CDECL wmain(int argc, wchar_t **wargv){
         utf8_printf(stderr, "no such VFS: \"%s\"\n", argv[i]);
         exit(1);
       }
+    } else if ( strcmp(z, "-readonly")==0 ) {
+      flags = SQLITE_OPEN_READONLY;
     }
   }
   if( data.zDbFilename==0 ){
@@ -8312,6 +8321,8 @@ int SQLITE_CDECL wmain(int argc, wchar_t **wargv){
           if( bail_on_error ) return rc;
         }
       }
+    } else if ( strcmp(z, "-readonly")==0 ) {
+      flags = SQLITE_OPEN_READONLY;
     }else{
       utf8_printf(stderr,"%s: Error: unknown option: %s\n", Argv0, z);
       raw_printf(stderr,"Use -help for a list of options.\n");
