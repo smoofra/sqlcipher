@@ -74,6 +74,7 @@ static unsigned int default_flags = DEFAULT_CIPHER_FLAGS;
 static unsigned char hmac_salt_mask = HMAC_SALT_MASK;
 static int default_kdf_iter = PBKDF2_ITER;
 static int default_page_size = 1024;
+static int default_plaintext_header_sz = 0;
 static unsigned int sqlcipher_activate_count = 0;
 static sqlite3_mutex* sqlcipher_provider_mutex = NULL;
 static sqlcipher_provider *default_provider = NULL;
@@ -81,6 +82,7 @@ static sqlcipher_provider *default_provider = NULL;
 struct codec_ctx {
   int kdf_salt_sz;
   int page_sz;
+  int plaintext_header_sz;
   unsigned char *kdf_salt;
   unsigned char *hmac_kdf_salt;
   unsigned char *buffer;
@@ -685,6 +687,32 @@ int sqlcipher_codec_ctx_get_use_hmac(codec_ctx *ctx, int for_ctx) {
   return (c_ctx->flags & CIPHER_FLAG_HMAC) != 0;
 }
 
+/* the length of plaintext header size must be:
+ * 1. greater than or equal to zero
+ * 2. a multiple of the cipher block size
+ * 3. less than the usable size of the first database page
+ */
+int sqlcipher_set_default_plaintext_header_size(int size) {
+  default_plaintext_header_sz = size;
+  return SQLITE_OK;
+}
+
+int sqlcipher_codec_ctx_set_plaintext_header_size(codec_ctx *ctx, int size) {
+  if(size >= 0 && (size % ctx->read_ctx->block_sz) == 0 && size < (ctx->page_sz - ctx->read_ctx->reserve_sz)) {
+    ctx->plaintext_header_sz = size;
+    return SQLITE_OK;
+  }
+  return SQLITE_ERROR;
+}
+
+int sqlcipher_get_default_plaintext_header_size() {
+  return default_plaintext_header_sz;
+}
+
+int sqlcipher_codec_ctx_get_plaintext_header_size(codec_ctx *ctx) {
+  return ctx->plaintext_header_sz;
+}
+
 int sqlcipher_codec_ctx_set_flag(codec_ctx *ctx, unsigned int flag) {
   ctx->write_ctx->flags |= flag;
   ctx->read_ctx->flags |= flag;
@@ -714,6 +742,15 @@ int sqlcipher_codec_ctx_get_reservesize(codec_ctx *ctx) {
 
 void* sqlcipher_codec_ctx_get_data(codec_ctx *ctx) {
   return ctx->buffer;
+}
+
+int sqlcipher_codec_ctx_set_kdf_salt(codec_ctx *ctx, unsigned char *salt, int size) {
+  if(size >= ctx->kdf_salt_sz) {
+    memcpy(ctx->kdf_salt, salt, ctx->kdf_salt_sz);
+    ctx->need_kdf_salt = 0;
+    return SQLITE_OK;
+  }
+  return SQLITE_ERROR;
 }
 
 void* sqlcipher_codec_ctx_get_kdf_salt(codec_ctx *ctx) {
@@ -823,6 +860,9 @@ int sqlcipher_codec_ctx_init(codec_ctx **iCtx, Db *pDb, Pager *pPager, sqlite3_f
 
   CODEC_TRACE("sqlcipher_codec_ctx_init: copying write_ctx to read_ctx\n");
   if((rc = sqlcipher_cipher_ctx_copy(ctx->write_ctx, ctx->read_ctx)) != SQLITE_OK) return rc;
+
+  CODEC_TRACE("sqlcipher_codec_ctx_init: calling sqlcipher_codec_ctx_set_plaintext_header_size with %d\n", default_plaintext_header_sz);
+  if((rc = sqlcipher_codec_ctx_set_plaintext_header_size(ctx, default_plaintext_header_sz)) != SQLITE_OK) return rc;
 
   return SQLITE_OK;
 }
