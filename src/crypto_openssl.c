@@ -47,28 +47,28 @@ static unsigned int openssl_external_init = 0;
 static unsigned int openssl_init_count = 0;
 static sqlite3_mutex* openssl_rand_mutex = NULL;
 
-#if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
-static HMAC_CTX *HMAC_CTX_new(void)
-{
-  HMAC_CTX *ctx = OPENSSL_malloc(sizeof(*ctx));
-  if (ctx != NULL) {
-    HMAC_CTX_init(ctx);
-  }
-  return ctx;
-}
+/* #if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER) */
+/* static HMAC_CTX *HMAC_CTX_new(void) */
+/* { */
+/*   HMAC_CTX *ctx = OPENSSL_malloc(sizeof(*ctx)); */
+/*   if (ctx != NULL) { */
+/*     HMAC_CTX_init(ctx); */
+/*   } */
+/*   return ctx; */
+/* } */
 
-// Per 1.1.0 (https://wiki.openssl.org/index.php/1.1_API_Changes)
-// HMAC_CTX_free should call HMAC_CTX_cleanup, then EVP_MD_CTX_Cleanup.
-// HMAC_CTX_cleanup internally calls EVP_MD_CTX_cleanup so these
-// calls are not needed.
-static void HMAC_CTX_free(HMAC_CTX *ctx)
-{
-  if (ctx != NULL) {
-    HMAC_CTX_cleanup(ctx);
-    OPENSSL_free(ctx);
-  }
-}
-#endif
+/* // Per 1.1.0 (https://wiki.openssl.org/index.php/1.1_API_Changes) */
+/* // HMAC_CTX_free should call HMAC_CTX_cleanup, then EVP_MD_CTX_Cleanup. */
+/* // HMAC_CTX_cleanup internally calls EVP_MD_CTX_cleanup so these */
+/* // calls are not needed. */
+/* static void HMAC_CTX_free(HMAC_CTX *ctx) */
+/* { */
+/*   if (ctx != NULL) { */
+/*     HMAC_CTX_cleanup(ctx); */
+/*     OPENSSL_free(ctx); */
+/*   } */
+/* } */
+/* #endif */
 
 static int sqlcipher_openssl_add_random(void *ctx, void *buffer, int length) {
 #ifndef SQLCIPHER_OPENSSL_NO_MUTEX_RAND
